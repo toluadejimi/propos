@@ -1,4 +1,27 @@
 @extends('backend.layout.main') @section('content')
+
+    @php
+        $alert_product = DB::table('products')->where('is_active', true)->whereColumn('alert_quantity', '>', 'qty')->count();
+       $general_setting =  Cache::remember('general_setting', 60*60*24*365, function () {
+                    return \App\Models\GeneralSetting::find(1);
+                });
+
+         $currency = Cache::remember('currency', 60*60*24*365, function () {
+                   $settingData = DB::table('general_settings')->select('currency')->latest()->first();
+                   return \App\Models\Currency::find($settingData->currency);
+               });
+
+          $categories_list = Cache::remember('category_list', 60*60*24*365, function () {
+         return DB::table('categories')->where('is_active', true)->get();
+     });
+
+                    $theme = "light";
+
+                     $role_has_permissions_list = collect(
+            cache()->get('role_has_permissions_list', [])
+        );
+
+    @endphp
 <section class="forms">
     <div class="container-fluid">
         <div class="card">
@@ -77,7 +100,7 @@
                             <th>{{__('db.Due')}}</th>
                             <th>{{__('db.status')}}</th>
                         </tr>
-                    </thead> 
+                    </thead>
 
                     <tfoot class="tfoot active">
                         <tr>
