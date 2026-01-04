@@ -15,6 +15,7 @@ use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Payroll;
 use App\Models\Product;
+use App\Models\GeneralSetting;
 use App\Models\Returns;
 use App\Models\Variant;
 use App\Models\Customer;
@@ -173,7 +174,7 @@ class ReportController extends Controller
                     ->join('products', 'product_warehouse.product_id', '=', 'products.id')
                     ->where('products.is_active', true)
                     ->sum('product_warehouse.qty');
-                    
+
                 $total_price = DB::table('products')->where('is_active', true)->sum(DB::raw('price * qty'));
                 $total_cost = DB::table('products')->where('is_active', true)->sum(DB::raw('cost * qty'));
             }
@@ -821,10 +822,10 @@ class ReportController extends Controller
                         else
                             $total_received_qty += $product_purchase->recieved / $purchase_unit_data->operation_value;
 
-                        $total_purchased_amount += $product_purchase->total / 
+                        $total_purchased_amount += $product_purchase->total /
                         (($product_purchase->exchange_rate && $product_purchase->exchange_rate != 0) ? $product_purchase->exchange_rate : 1);
 
-                        $total_tax += $product_purchase->tax / 
+                        $total_tax += $product_purchase->tax /
                         (($product_purchase->exchange_rate && $product_purchase->exchange_rate != 0) ? $product_purchase->exchange_rate : 1);
                     }
                     if($total_received_qty) {
@@ -888,10 +889,10 @@ class ReportController extends Controller
                         else
                             $total_received_qty += $product_purchase->recieved / $purchase_unit_data->operation_value;
 
-                        $total_purchased_amount += $product_purchase->total / 
+                        $total_purchased_amount += $product_purchase->total /
                         (($product_purchase->exchange_rate && $product_purchase->exchange_rate != 0) ? $product_purchase->exchange_rate : 1);
 
-                        $total_tax += $product_purchase->tax / 
+                        $total_tax += $product_purchase->tax /
                         (($product_purchase->exchange_rate && $product_purchase->exchange_rate != 0) ? $product_purchase->exchange_rate : 1);
                     }
                 }
@@ -1260,7 +1261,7 @@ class ReportController extends Controller
                 ->whereNotNull('imei_number')
                 ->select('imei_number')->get();
         }
-        
+
         foreach ($purchases as $purchase) {
             $imei_numbers[] = array_unique(explode(',', $purchase->imei_number));
         }
@@ -1481,7 +1482,7 @@ class ReportController extends Controller
                                                             ['product_purchases.product_id', $product->id],
                                                         ])->whereNull('purchases.deleted_at')
                                                         ->whereDate('purchases.created_at','>=', $start_date)->whereDate('purchases.created_at','<=', $end_date)->sum(DB::raw('product_purchases.total / purchases.exchange_rate'));
-                                                    
+
                     $lims_product_purchase_data = ProductPurchase::select('purchase_unit_id', 'qty')->where('product_id', $product->id)->whereDate('created_at', '>=' , $start_date)->whereDate('created_at', '<=' , $end_date)->get();
 
                     $purchased_qty = 0;
@@ -1645,19 +1646,19 @@ class ReportController extends Controller
         $start_date   = $request->start_date . ' 00:00:00';
         $end_date     = $request->end_date . ' 23:59:59';
         $warehouse_id = (int) $request->warehouse_id;
-    
+
         // -----------------------------
         // DataTables params
         // -----------------------------
         $columns = [1 => 'name'];
         $limit   = $request->length == -1 ? 100000 : $request->length;
         $start   = $request->start ?? 0;
-    
+
         $orderColumnIndex = $request->input('order.0.column', 1);
         $order            = $columns[$orderColumnIndex] ?? 'name';
         $dir              = $request->input('order.0.dir', 'asc');
         $search           = $request->input('search.value');
-    
+
         // -----------------------------
         // Custom fields
         // -----------------------------
@@ -1665,13 +1666,13 @@ class ReportController extends Controller
             ['belongs_to', 'sale'],
             ['is_table', true]
         ])->pluck('type', 'name');
-    
+
         // -----------------------------
         // Preload helpers
         // -----------------------------
         $units    = DB::table('units')->get()->keyBy('id');
         $variants = Variant::pluck('name', 'id');
-    
+
         // -----------------------------
         // VALID SALES (DRIVING DATASET)
         // -----------------------------
@@ -1679,7 +1680,7 @@ class ReportController extends Controller
             ->whereBetween('created_at', [$start_date, $end_date])
             ->when($warehouse_id > 0, fn ($q) => $q->where('warehouse_id', $warehouse_id))
             ->pluck('id');
-    
+
         if ($validSaleIds->isEmpty()) {
             return response()->json([
                 'draw' => intval($request->draw),
@@ -1688,41 +1689,41 @@ class ReportController extends Controller
                 'data' => []
             ]);
         }
-    
+
         // -----------------------------
         // SOLD PRODUCT IDS (FROM SALES)
         // -----------------------------
         $soldProductIds = Product_Sale::whereIn('sale_id', $validSaleIds)
             ->pluck('product_id')
             ->unique();
-    
+
         // -----------------------------
         // Base product query
         // -----------------------------
         $productQuery = Product::with('category')
             ->where('is_active', true)
             ->whereIn('id', $soldProductIds);
-    
+
         if ($search) {
             $productQuery->where('name', 'LIKE', "%{$search}%");
         }
-    
+
         $totalData = $productQuery->count();
-    
+
         $products = $productQuery
             ->select('id', 'name', 'code', 'category_id', 'qty', 'is_variant')
             ->orderBy($order, $dir)
             ->offset($start)
             ->limit($limit)
             ->get();
-    
+
         // -----------------------------
         // Product variants preload
         // -----------------------------
         $productVariants = ProductVariant::whereIn('product_id', $products->pluck('id'))
             ->get()
             ->groupBy('product_id');
-    
+
         // -----------------------------
         // Warehouse stock preload
         // -----------------------------
@@ -1730,7 +1731,7 @@ class ReportController extends Controller
             ->when($warehouse_id > 0, fn ($q) => $q->where('warehouse_id', $warehouse_id))
             ->get()
             ->groupBy(fn ($r) => $r->product_id . '_' . ($r->variant_id ?? 0));
-    
+
         // -----------------------------
         // SALES AGGREGATION (SALES DATE SAFE)
         // -----------------------------
@@ -1746,28 +1747,28 @@ class ReportController extends Controller
             ->groupBy('product_id', 'variant_id')
             ->get()
             ->keyBy(fn ($r) => $r->product_id . '_' . ($r->variant_id ?? 0));
-    
+
         // -----------------------------
         // Build response rows
         // -----------------------------
         $data = [];
         $rowKey = 0;
         $customCache = [];
-    
+
         foreach ($products as $product) {
-    
+
             $variantList = $product->is_variant
                 ? ($productVariants[$product->id] ?? collect())
                 : collect([null]);
-    
+
             foreach ($variantList as $variantRow) {
-    
+
                 $variant_id = $variantRow->variant_id ?? 0;
                 $indexKey   = $product->id . '_' . $variant_id;
                 $agg        = $salesAgg[$indexKey] ?? null;
-    
+
                 if (!$agg) continue;
-    
+
                 // Name
                 $name = $product->name;
                 if ($variant_id) {
@@ -1776,23 +1777,23 @@ class ReportController extends Controller
                 } else {
                     $name .= '<br>Product Code: ' . $product->code;
                 }
-    
+
                 // Stock
                 if ($warehouse_id > 0) {
                     $stock = $warehouseStock[$indexKey][0]->qty ?? 0;
                 } else {
                     $stock = $variant_id ? $variantRow->qty : $product->qty;
                 }
-    
+
                 // Custom fields
                 $saleIds = explode(',', $agg->sale_ids);
                 $hash    = md5($agg->sale_ids);
-    
+
                 if (!isset($customCache[$hash])) {
                     $sales = Sale::whereIn('id', $saleIds)->get();
                     $customCache[$hash] = $this->reportCustomField($sales, $custom_fields);
                 }
-    
+
                 // Row
                 $row = [
                     'key'         => $rowKey++,
@@ -1802,15 +1803,15 @@ class ReportController extends Controller
                     'sold_amount' => round($agg->total_amount, 2),
                     'in_stock'    => $stock,
                 ];
-    
+
                 foreach ($customCache[$hash] as $k => $v) {
                     $row[$k] = $v;
                 }
-    
+
                 $data[] = $row;
             }
         }
-    
+
         // -----------------------------
         // DataTables response
         // -----------------------------
@@ -1834,7 +1835,7 @@ class ReportController extends Controller
                 $custom_data[$lower_field_name] = $data->pluck($lower_field_name)->filter()->values();
             }
         }
-        
+
         return $custom_data;
     }
 
@@ -2332,6 +2333,8 @@ class ReportController extends Controller
                 $totalFiltered = $q->orwhere('returns.created_at', 'LIKE', "%{$search}%")->orwhere('returns.reference_no', 'LIKE', "%{$search}%")->count();
             }
         }
+
+        $general_setting = GeneralSetting::where('id', 1)->first();
         $data = array();
         if(!empty($returns))
         {
@@ -2356,11 +2359,11 @@ class ReportController extends Controller
                     else
                         $unitCode = '';
                     if($index)
-                        $nestedData['product'] .= '<br>'.$product_return->product_name.' ('.number_format($product_return->qty, cache()->get('general_setting')->decimal).' '.$unitCode.')';
+                        $nestedData['product'] .= '<br>'.$product_return->product_name.' ('.number_format($product_return->qty, $general_setting->decimal).' '.$unitCode.')';
                     else
-                        $nestedData['product'] = $product_return->product_name.' ('.number_format($product_return->qty, cache()->get('general_setting')->decimal).' '.$unitCode.')';
+                        $nestedData['product'] = $product_return->product_name.' ('.number_format($product_return->qty, $general_setting->decimal).' '.$unitCode.')';
                 }
-                $nestedData['grand_total'] = number_format($sale->grand_total, cache()->get('general_setting')->decimal);
+                $nestedData['grand_total'] = number_format($sale->grand_total, $general_setting->decimal);
                 $data[] = $nestedData;
             }
         }
