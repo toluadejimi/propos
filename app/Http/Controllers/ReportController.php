@@ -15,7 +15,6 @@ use App\Models\Expense;
 use App\Models\Payment;
 use App\Models\Payroll;
 use App\Models\Product;
-use App\Models\GeneralSetting;
 use App\Models\Returns;
 use App\Models\Variant;
 use App\Models\Customer;
